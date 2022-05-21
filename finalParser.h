@@ -1,3 +1,4 @@
+#pragma once
 #include <stdio.h>
 #include <string.h>
 #include <string>
@@ -39,6 +40,7 @@ class Quaternary {
 public:
     Quaternary() { index = 0; }
     void set(string pos, string cont);
+    void set(string a, string b, string c, string d);
     void put();
     string retop() {
         return this->op;
@@ -52,7 +54,6 @@ public:
     string retResult() {
         return this->result;
     }
-
 };
 
 class Function {
@@ -67,6 +68,7 @@ public:
     void calArr();
     int getPara(string name);
     void calMidArr();
+    void defineArr();
 };
 
 extern vector<string> items;
@@ -80,6 +82,8 @@ extern vector<int> leftIndex;
 extern vector<Quaternary> tempQuas;
 extern vector<int> controlIndex;
 extern bool isLeft;
+extern vector<int> pass;
+extern vector<vector<string>> paras;
 
 void stateFunction();
 void addQua(string op);
@@ -94,3 +98,6 @@ void endControl(bool isWhile);
 void callFunc();
 void sendPara();
 void tempParaList();
+void startElse();
+void endElse();
+void savePara();

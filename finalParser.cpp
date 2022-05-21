@@ -10,6 +10,8 @@ extern vector<int> curIndex;
 extern vector<int> leftIndex;
 extern vector<Quaternary> tempQuas;
 extern vector<int> controlIndex;
+extern vector<int> pass;
+extern vector<vector<string>> paras;
 extern bool isLeft;
 extern int errorNum;
 extern int T;
@@ -29,6 +31,15 @@ void Function::stateVari() {
 	temp.isArr = false;
 	temp.variName = name;
 	this->paras.push_back(temp);
+}
+
+void Function::defineArr() {
+	Quaternary temp;
+	int elements = 1;
+	for (auto& it : this->paras.back().dims)
+		elements *= it;
+	temp.set("[]", paras.back().variName, "_", to_string(elements));
+	Quas.push_back(temp);
 }
 
 void Function::stateArr() {
@@ -60,19 +71,16 @@ void Function::calArr() {
 	temp.set("result", string("T") + to_string(T++));
 	Quas.push_back(temp);
 
-	temp.set("op", "-");
+	temp.set("op", "=");
 	temp.set("arg1", arrAddr.back().name);
 	Vari arr = this->paras.at(this->getPara(arrAddr.back().name));
 	int space = 1;
 	for (int i = 0; i < arr.dims.size(); i++) {
 		space *= arr.dims.at(i);
 	}
-	temp.set("arg2", to_string((space + 1) * 4));
+	temp.set("arg2", "_");
 	temp.set("result", string("T") + to_string(T++));
-
 	Quas.push_back(temp);
-
-	
 	
 	if (!isLeft) {
 		temp.set("op", "=[]");
@@ -85,7 +93,8 @@ void Function::calArr() {
 		isLeft = true;
 	
 	arrAddr.pop_back();
-
+	factors.pop_back();
+	Quas.back();
 }
 
 int Function::getPara(string name) {
@@ -110,6 +119,16 @@ void Function::calMidArr() {
 		}
 		factors.pop_back();
 		temp.set("arg2", to_string(arr.dims.at(i)));
+
+		if (isdigit(temp.retarg1()[0])) {
+			Quaternary t;
+			t.set("op", "=");
+			t.set("arg1", temp.retarg1());
+			t.set("arg2", "_");
+			t.set("result", "T" + to_string(T++));
+			Quas.push_back(t);
+			temp.set("arg1", "T" + to_string(T - 1));
+		}
 		temp.set("result", "T" + to_string(T++));
 		Quas.push_back(temp);
 		
@@ -129,6 +148,13 @@ void Quaternary::set(string pos, string cont) {
 		this->result = cont;
 	else
 		this->index = atoi(cont.c_str());
+}
+
+void Quaternary::set(string a, string b, string c, string d) {
+	this->op = a;
+	this->arg1 = b;
+	this->arg2 = c;
+	this->result = d;
 }
 
 void Quaternary::put() {
@@ -159,12 +185,13 @@ void stateFunction() {
 void addQua(string op) {
 	Quaternary temp;
 	temp.set("op",op);
-	if(curIndex.back()==Quas.size()-1)//num
+	if (curIndex.back() == Quas.size() - 1) {//num
 		temp.set("arg1", factors.back());
+		factors.pop_back();
+	}
 	else
 		temp.set("arg1", "T"+to_string(T-1));
 	temp.set("arg2", "tofill");
-	factors.pop_back();
 	Quas.push_back(temp);
 }
 
@@ -186,7 +213,7 @@ void fillQua() {
 			for (int j = i+1; j < Quas.size(); j++) {			 
 				Quas.at(j - 1) = Quas.at(j);
 			}
-			Quas.at(Quas.size() - 1) = ptr;
+			Quas.at(Quas.size() - 1) = ptr;//exchange
 			return;
 		}
 	}
@@ -201,6 +228,12 @@ void assignArr() {
 	else {
 		temp.set("arg1", factors.back());
 		factors.pop_back();
+	}
+	if (isdigit(temp.retarg1()[0])) {
+		Quaternary t;
+		t.set("=", temp.retarg1(), "_", "T" + to_string(T++));
+		Quas.push_back(t);
+		temp.set("arg1", "T" + to_string(T - 1));
 	}
 	curIndex.pop_back();
 	temp.set("arg2", "_");
@@ -347,7 +380,10 @@ void endControl(bool isWhile) {
 	controlIndex.pop_back();
 	for (int i = Quas.size() - 1; i >= 0; i--) {
 		if (Quas.at(i).retResult() == "tofill") {
-			Quas.at(i).set("result", to_string(Quas.size()+1));
+			if(isWhile)
+				Quas.at(i).set("result", to_string(Quas.size() + 1));
+			else
+				Quas.at(i).set("result", to_string(Quas.size()+2));
 			break;
 		}
 	}
@@ -357,26 +393,40 @@ void callFunc() {
 	Quaternary temp;
 	temp.set("op", "call");
 	temp.set("arg2", "_");
-	temp.set("arg1", "entry(" + factors.back() + ")");
+	temp.set("arg1", factors.back());
 	temp.set("result", "T"+ to_string(T++));
 	factors.pop_back();
-	Quas.push_back(temp);
+	if(pass.size()==0)
+		Quas.push_back(temp);
+	else {
+		int paras = 0;
+		for (auto& it : pass)
+			paras += it;
+		Quas.insert(Quas.end() - paras + pass.back(), temp);
+	}
 }
 
 void sendPara() {
 	Quaternary temp;
-	temp.set("op", "para");
+	while (1) {
+		if (paras.back().size() == 0)
+			break;
+		temp.set("para", "_", "_", "_");
+		temp.set("result", paras.back().back());
+		paras.back().pop_back();
+		Quas.push_back(temp);
+	}
+	paras.pop_back();
+}
+
+void savePara() {
 	if (curIndex.back() != Quas.size() - 1) {
-		temp.set("result", "T" + to_string(T - 1));
+		paras.back().push_back("T" + to_string(T - 1));
 	}
 	else {
-		temp.set("result", factors.back());
+		paras.back().push_back(factors.back());
 		factors.pop_back();
 	}
-	curIndex.pop_back();
-	temp.set("arg1", "_");
-	temp.set("arg2", "_");
-	Quas.push_back(temp);
 }
 
 void tempParaList() {
@@ -386,4 +436,22 @@ void tempParaList() {
 	temp.set("arg2", "_");
 	temp.set("result", items.back());
 	Quas.push_back(temp);
+}
+
+void startElse() {
+	Quaternary temp;
+	temp.set("op", "j");
+	temp.set("arg1", "_");
+	temp.set("arg2", "_");
+	temp.set("result", "tofill");
+	Quas.push_back(temp);
+}
+
+void endElse() {
+	for (int i = Quas.size() - 1; i >= 0; i--) {
+		if (Quas.at(i).retResult() == "tofill") {
+			Quas.at(i).set("result", to_string(Quas.size()+1));
+			break;
+		}
+	}
 }

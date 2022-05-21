@@ -5,6 +5,7 @@
 #include <iostream>
 #include <vector>
 #include "finalParser.h"
+#include "genAsm.h"
 using namespace std;
 int errorNum=0;
 vector<string>items;
@@ -17,7 +18,10 @@ vector<int> curIndex;
 vector<int> leftIndex;
 vector<int> controlIndex;
 vector<Quaternary> tempQuas;
+vector<int> pass;
+vector<vector<string>> paras;
 bool isLeft=true;
+
 int T=0;
 int index=0;
 int yylex(void);
@@ -81,7 +85,7 @@ extern FILE * yyout;
             |
             ;
         tarrs: MLBRAC NUM MRBRAC {functions.back().stateArr();} tarrs
-            |
+            | {functions.back().defineArr();}
             ;
         sstring: string sstring
             | string
@@ -89,7 +93,7 @@ extern FILE * yyout;
         string: ifString
             | whileString
             | returnString
-            | assignString
+            | {isLeft=true;}assignString
             ;
         assignString: ID {factors.push_back(items.back());items.pop_back();} ASSIGN {isLeft=false;curIndex.push_back(Quas.size()-1);} expression {assignVari();} DELIM 
             | arr {leftIndex.push_back(T-1);} ASSIGN {isLeft=false;curIndex.push_back(Quas.size()-1);} expression {assignArr();} DELIM
@@ -101,7 +105,7 @@ extern FILE * yyout;
             ;
         ifString: IF {controlIndex.push_back(Quas.size()-1); } SLBRAC expression SRBRAC {control();} langField {endControl(false);} elseField
             ;
-        elseField:ELSE langField
+        elseField: {startElse();} ELSE langField {endElse();}
             |
             ;
         expression:  {curIndex.push_back(Quas.size()-1);} addExp saddExp  
@@ -136,20 +140,20 @@ extern FILE * yyout;
         ftype: call 
             |
             ;
-        call: SLBRAC curParas SRBRAC {callFunc();}
+        call: SLBRAC {if(pass.size()==0) pass.push_back(0); else pass.push_back(pass.back());} curParas SRBRAC {callFunc();pass.pop_back(); }
             ;
         arr: ID  {factors.push_back(items.back());arrAddr.push_back(items.back());items.pop_back(); arrAddr.back().last=Quas.size()-1; } MLBRAC expression MRBRAC {functions.back().calMidArr();}  sarr
-            ;
+            
         sarr: {arrAddr.back().last=Quas.size()-1;}MLBRAC expression MRBRAC {functions.back().calMidArr();} sarr
             | {functions.back().calArr();}
             ;
         curParas: curParaList
             |
             ;
-        curParaList: {curIndex.push_back(Quas.size()-1);} expression {sendPara();} sexpression
+        curParaList: {curIndex.push_back(Quas.size()-1); paras.push_back({}); } expression {savePara();} sexpression
             ;
-        sexpression: COMMA {curIndex.push_back(Quas.size()-1);} expression {sendPara();} sexpression
-            |
+        sexpression: COMMA {curIndex.push_back(Quas.size()-1);} expression {savePara();} sexpression
+            | {sendPara();}
             ;
 %%
 void yyerror(const char *str){
@@ -187,7 +191,7 @@ int main(int argc,char** argv)
             temp.set("op","j");
             temp.set("arg1","_");
             temp.set("arg2","_");
-            temp.set("result",to_string(i+2));
+            temp.set("result",to_string(i+1));
             Quas.insert(Quas.begin(),temp);
             break;
         }
@@ -197,6 +201,16 @@ int main(int argc,char** argv)
         cout<<i<<' ';
         Quas.at(i).put();
     }
+
+    GenAsm Asm;
+    Asm.parse();
+
+    ofstream out;
+    out.open("./asm.txt",ios::out);
+    for(int i=0;i<Asm.Asms.size();i++){
+        out<<Asm.Asms.at(i)<<endl;
+    }
+    out.close();
     return 0;
 }
  
